@@ -93,33 +93,153 @@ instance FromJSON CharFilterDefinition where
         <$> m .: "pattern" <*> m .: "replacement" <*> m .:? "flags"
       _ -> fail ("unrecognized character filter type: " ++ T.unpack t)
 
-newtype TokenizerDefinition =
-  TokenizerDefinitionNgram Ngram
+data TokenizerDefinition
+  = TokenizerDefinitionStandard Standard
+  | TokenizerDefinitionLetter Letter
+  | TokenizerDefinitionLowercase Lowercase
+  | TokenizerDefinitionWhitespace Whitespace
+  | TokenizerDefinitionUaxUrlEmail UaxUrlEmail
+  | TokenizerDefinitionClassic Classic
+  | TokenizerDefinitionThai ThaiTokenizer
+  | TokenizerDefinitionNgram Ngram
+  | TokenizerDefinitionEdgeNgram EdgeNgram
+  | TokenizerDefinitionKeyword Keyword
+  | TokenizerDefinitionPattern PatternTokenizer
+  | TokenizerDefinitionPath Path
+  | TokenizerDefinitionCustom Object -- Fallback for unsupported types if needed
+  -- TODO additional tokenizers:
+  -- standard, letter, lowercase, whitespace, uax url email tokenizer, thai, keyword, pattern, path
   deriving (Eq,Show)
 
 instance ToJSON TokenizerDefinition where
   toJSON x = case x of
+    TokenizerDefinitionStandard (Standard maxLen) -> object
+      [ "type" .= ("standard" :: Text)
+      , "max_token_length" .= maxLen
+      ]
+    TokenizerDefinitionLetter Letter -> object
+      [ "type" .= ("letter" :: Text)
+      ]
+    TokenizerDefinitionLowercase Lowercase -> object
+      [ "type" .= ("lowercase" :: Text)
+      ]
+    TokenizerDefinitionWhitespace (Whitespace maxLen) -> object
+      [ "type" .= ("whitespace" :: Text)
+      , "max_token_length" .= maxLen
+      ]
+    TokenizerDefinitionUaxUrlEmail (UaxUrlEmail maxLen) -> object
+      [ "type" .= ("uax_url_email" :: Text)
+      , "max_token_length" .= maxLen
+      ]
+    TokenizerDefinitionClassic (Classic maxLen) -> object
+      [ "type" .= ("classic" :: Text)
+      , "max_token_length" .= maxLen
+      ]
+    TokenizerDefinitionThai ThaiTokenizer -> object
+      [ "type" .= ("thai" :: Text)
+      ]
     TokenizerDefinitionNgram (Ngram minGram maxGram tokenChars) -> object
       [ "type" .= ("ngram" :: Text)
       , "min_gram" .= minGram
       , "max_gram" .= maxGram
       , "token_chars" .= tokenChars
       ]
+    TokenizerDefinitionEdgeNgram (EdgeNgram minGram maxGram tokenChars) -> object
+      [ "type" .= ("edge_ngram" :: Text)
+      , "min_gram" .= minGram
+      , "max_gram" .= maxGram
+      , "token_chars" .= tokenChars
+      ]
+    TokenizerDefinitionKeyword (Keyword bufSize) -> object
+      [ "type" .= ("keyword" :: Text)
+      , "buffer_size" .= bufSize
+      ]
+    TokenizerDefinitionPattern (PatternTokenizer pat flags group) -> object
+      [ "type" .= ("pattern" :: Text)
+      , "pattern" .= pat
+      , "flags" .= flags
+      , "group" .= group
+      ]
+    TokenizerDefinitionPath (Path delim replacement bufSize rev skip) -> object
+      [ "type" .= ("path_hierarchy" :: Text)
+      , "delimiter" .= delim
+      , "replacement" .= replacement
+      , "buffer_size" .= bufSize
+      , "reverse" .= rev
+      , "skip" .= skip
+      ]
+    TokenizerDefinitionCustom obj -> Object obj
 
 instance FromJSON TokenizerDefinition where
   parseJSON = withObject "TokenizerDefinition" $ \m -> do
     typ <- m .: "type" :: Parser Text
     case typ of
+      "standard" -> fmap TokenizerDefinitionStandard $ Standard
+        <$> fmap unStringlyTypedInt (m .: "max_token_length")
       "ngram" -> fmap TokenizerDefinitionNgram $ Ngram
         <$> fmap unStringlyTypedInt (m .: "min_gram")
         <*> fmap unStringlyTypedInt (m .: "max_gram")
         <*> m .: "token_chars"
+      "edge_ngram" -> fmap TokenizerDefinitionEdgeNgram $ EdgeNgram
+        <$> fmap unStringlyTypedInt (m .: "min_gram")
+        <*> fmap unStringlyTypedInt (m .: "max_gram")
+        <*> m .: "token_chars"
+      -- TODO support other tokenizers
       _ -> fail "invalid TokenizerDefinition"
+
+data Standard = Standard
+  { standardMaxTokenLength :: Int
+  } deriving (Eq,Show)
+
+data Letter = Letter
+  deriving (Eq,Show)
+
+data Lowercase = Lowercase
+  deriving (Eq,Show)
+
+data Whitespace = Whitespace
+  { whitespaceMaxTokenLength :: Int
+  } deriving (Eq,Show)
+
+data UaxUrlEmail = UaxUrlEmail
+  { uaxUrlEmailMaxTokenLength :: Int
+  } deriving (Eq,Show)
+
+data Classic = Classic
+  { classicMaxTokenLength :: Int
+  } deriving (Eq,Show)
+
+data ThaiTokenizer = ThaiTokenizer
+  deriving (Eq,Show)
 
 data Ngram = Ngram
   { ngramMinGram :: Int
   , ngramMaxGram :: Int
   , ngramTokenChars :: [TokenChar]
+  } deriving (Eq,Show)
+
+data EdgeNgram = EdgeNgram
+  { edgeNgramMinGram :: Int
+  , edgeNgramMaxGram :: Int
+  , edgeNgramTokenChars :: [TokenChar]
+  } deriving (Eq,Show)
+
+data Keyword = Keyword
+  { keywordBufferSize :: Int
+  } deriving (Eq,Show)
+
+data PatternTokenizer = PatternTokenizer
+  { patternTokenizerPattern :: Text
+  , patternTokenizerFlags :: Text
+  , patternTokenizerGroup :: Int
+  } deriving (Eq,Show)
+
+data Path = Path
+  { pathDelimiter :: Char
+  , pathReplacement :: Maybe Char
+  , pathBufferSize :: Int
+  , pathReverse :: Bool
+  , pathSkip :: Int
   } deriving (Eq,Show)
 
 data TokenChar =
